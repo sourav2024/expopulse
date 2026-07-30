@@ -1,0 +1,53 @@
+{
+  "name": "expopulse",
+  "version": "0.1.0",
+  "description": "Rule-based static analysis and optimisation platform for Expo applications",
+  "license": "MIT",
+  "author": "sourav2024 (https://github.com/sourav2024)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sourav2024/expopulse.git",
+    "directory": "apps/cli"
+  },
+  "homepage": "https://github.com/sourav2024/expopulse#readme",
+  "bugs": {
+    "url": "https://github.com/sourav2024/expopulse/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/sourav2024"
+  },
+  "type": "module",
+  "bin": {
+    "expopulse": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "README.md"],
+  "keywords": [
+    "expo",
+    "react-native",
+    "static-analysis",
+    "linter",
+    "performance",
+    "bundle-size",
+    "cli"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "start": "node ./dist/index.js"
+  },
+  "dependencies": {
+    "@expopulse/core": "workspace:*",
+    "boxen": "^8.0.1",
+    "chalk": "^5.4.1",
+    "cli-table3": "^0.6.5",
+    "commander": "^12.1.0",
+    "ora": "^8.1.1"
+  }
+}

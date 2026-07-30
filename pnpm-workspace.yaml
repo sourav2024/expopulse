@@ -1,0 +1,10 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+# These three ship platform-specific native binaries or CLIs that are
+# downloaded/linked by their install scripts, so they do not work at all
+# unless their builds are allowed to run.
+allowBuilds:
+  '@biomejs/biome': true
+  esbuild: true
+  sharp: true

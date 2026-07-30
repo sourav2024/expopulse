@@ -1,0 +1,52 @@
+{
+  "name": "@expopulse/core",
+  "version": "0.1.0",
+  "description": "Core engine, rules engine and analyzers for ExpoPulse",
+  "license": "MIT",
+  "author": "sourav2024 (https://github.com/sourav2024)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sourav2024/expopulse.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/sourav2024/expopulse#readme",
+  "bugs": {
+    "url": "https://github.com/sourav2024/expopulse/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/sourav2024"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist"],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@babel/parser": "^7.26.3",
+    "@babel/traverse": "^7.26.4",
+    "@babel/types": "^7.26.3",
+    "cosmiconfig": "^9.0.0",
+    "fast-glob": "^3.3.2",
+    "fs-extra": "^11.2.0",
+    "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "@types/babel__traverse": "^7.20.6",
+    "@types/fs-extra": "^11.0.4"
+  }
+}
