@@ -10,6 +10,19 @@ released together.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-30
+
+### Fixed
+
+- **The CLI produced no output under any real installation.** The entry-point
+  guard compared `import.meta.url` against an unresolved `process.argv[1]`, but
+  npm and pnpm install `bin` entries as symlinks, so argv[1] was the link path
+  and the comparison never matched. `npx expopulse`, a global install, and
+  `node_modules/.bin/expopulse` all exited 0 silently; only running
+  `node dist/index.js` directly worked, which is why development never caught it.
+  argv[1] is now resolved through `realpath` before comparison, and a regression
+  test exercises the built binary through a symlink.
+
 ## [0.1.0] - 2026-07-30
 
 Initial release.

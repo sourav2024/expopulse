@@ -1,9 +1,13 @@
+import path from 'node:path'
 /**
  * Regression tests for bugs found during initial end-to-end verification.
  * Each test here corresponds to a defect that shipped in a build and was fixed;
  * they exist to stop those specific mistakes coming back.
  */
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 import { compareResults } from '../packages/core/src/core/compare.js'
 import { aggregateRecoverableBytes } from '../packages/core/src/core/impact.js'
 import { findingKey } from '../packages/core/src/core/rules-engine.js'
@@ -222,5 +226,41 @@ describe('removeSpecifiers', () => {
 
   it('refuses a line where an import shares space with other code', () => {
     expect(removeSpecifiers("import A from './x'; const z = 1", new Set(['A']))).toBeNull()
+  })
+})
+
+/**
+ * The CLI entry guard compared `import.meta.url` against an unresolved
+ * `process.argv[1]`. npm and pnpm install `bin` entries as symlinks, so argv[1]
+ * was the link path and the comparison never matched: `npx expopulse`, a global
+ * install, and `node_modules/.bin/expopulse` all exited 0 with no output, while
+ * `node dist/index.js` worked in development. This exercises the real built
+ * binary through a symlink, which is the only way to catch it.
+ */
+describe('CLI entry point', () => {
+  it('runs when invoked through a symlinked bin', async () => {
+    const { execFile } = await import('node:child_process')
+    const { promisify } = await import('node:util')
+    const fs = await import('node:fs/promises')
+    const os = await import('node:os')
+    const path = await import('node:path')
+    const execFileAsync = promisify(execFile)
+
+    const built = path.resolve(__dirname, '../apps/cli/dist/index.js')
+    try {
+      await fs.access(built)
+    } catch {
+      // `pnpm build` has not run; the packaged smoke test in CI covers this.
+      return
+    }
+
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'expopulse-bin-'))
+    const link = path.join(dir, 'expopulse')
+    await fs.symlink(built, link)
+
+    const { stdout } = await execFileAsync(process.execPath, [link, '--version'])
+    expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+/)
+
+    await fs.rm(dir, { recursive: true, force: true })
   })
 })
