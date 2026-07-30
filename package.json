@@ -1,0 +1,41 @@
+{
+  "name": "expopulse-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Rule-based static analysis and optimisation platform for Expo applications",
+  "author": "sourav2024 (https://github.com/sourav2024)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sourav2024/expopulse.git"
+  },
+  "homepage": "https://github.com/sourav2024/expopulse#readme",
+  "bugs": {
+    "url": "https://github.com/sourav2024/expopulse/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/sourav2024"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@11.4.0",
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm -r --parallel dev",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.10.2",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

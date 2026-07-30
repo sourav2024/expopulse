@@ -1,0 +1,180 @@
+name: Bug report
+description: Something is broken, or a rule fired on code that is actually fine.
+title: "[bug]: "
+labels: ["bug", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please fill in as much as you can — the version,
+        Node version, OS and analyze output are what make a report actionable.
+
+        **Do not report security vulnerabilities here.** Use a
+        [private advisory](https://github.com/sourav2024/expopulse/security/advisories/new)
+        instead. See [SECURITY.md](https://github.com/sourav2024/expopulse/blob/main/SECURITY.md).
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      description: Please confirm each of these before filing.
+      options:
+        - label: I searched existing issues and Discussions and did not find this.
+          required: true
+        - label: I read the [Known limitations](https://github.com/sourav2024/expopulse#known-limitations) in the README and this is not one of them.
+          required: true
+        - label: I am on the latest 0.x release, or I have said below why I cannot upgrade.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you expect, and what did you get instead?
+      placeholder: |
+        I expected ExpoPulse to ...
+        Instead it ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: >
+        Include the exact command and its flags. A reproduction in a fresh
+        `npx create-expo-app` project is ideal; if the problem needs specific
+        project contents, describe or link them.
+      placeholder: |
+        1. In a project with ...
+        2. Run `expopulse analyze --only assets`
+        3. See finding ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: command
+    attributes:
+      label: Which command
+      options:
+        - analyze
+        - doctor
+        - fix
+        - compare
+        - report
+        - Not command-specific (config loading, install, etc.)
+    validations:
+      required: true
+
+  - type: input
+    id: rule-id
+    attributes:
+      label: Rule id (for a false positive)
+      description: >
+        Exactly as it appears in the output, e.g. `assets/unused-asset`. Leave
+        blank if this is not about a specific rule. `expopulse doctor --rules`
+        lists them all.
+      placeholder: assets/unused-asset
+    validations:
+      required: false
+
+  - type: textarea
+    id: false-positive-detail
+    attributes:
+      label: Why the finding is wrong (for a false positive)
+      description: >
+        Show the code, asset or config that was flagged, and explain why it is
+        correct as written — particularly how the thing is actually referenced,
+        if the rule claims it is unused.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: fix-involved
+    attributes:
+      label: Was `fix` involved?
+      description: >
+        `fix` writes to real files, deletes assets and can roll back from a
+        manifest. Bugs there are triaged first.
+      options:
+        - "No"
+        - "Yes — with --dry-run only (nothing was written)"
+        - "Yes — it wrote to my files"
+        - "Yes — it deleted something it should not have"
+        - "Yes — --rollback did not restore correctly"
+    validations:
+      required: true
+
+  - type: textarea
+    id: fix-detail
+    attributes:
+      label: Fix details
+      description: >
+        If `fix` was involved: which flags you used (`--yes`, `--webp`, `--rule`,
+        `--no-backup`), what the preview said it would do, what it actually did,
+        and whether `--rollback` recovered the files.
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: ExpoPulse version
+      description: Output of `expopulse --version`.
+      placeholder: 0.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node version
+      description: Output of `node --version`. ExpoPulse requires Node 20 or newer.
+      placeholder: v22.11.0
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: Include whether this happened on CI, and which runner.
+      placeholder: macOS 15.2 (arm64) — also on ubuntu-latest in GitHub Actions
+    validations:
+      required: true
+
+  - type: textarea
+    id: analyze-output
+    attributes:
+      label: Analyze output
+      description: >
+        Paste the output of `expopulse analyze --json`, which includes the tool
+        version, metrics, warnings and every finding. If that is too large or
+        reveals too much, paste `expopulse analyze --verbose` terminal output
+        plus the relevant findings. Redact if you must, but say that you did.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: >
+        Your `expopulse.config.*` or the `expopulse` key from `package.json`, if
+        you have one. Say "none" if you run with defaults.
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: anything-else
+    attributes:
+      label: Anything else
+      description: >
+        Stack traces from `--debug`, whether the project is managed or bare
+        workflow, Expo SDK version, package manager — anything you think matters.
+    validations:
+      required: false

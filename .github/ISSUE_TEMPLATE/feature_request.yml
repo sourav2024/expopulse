@@ -1,0 +1,164 @@
+name: Feature request
+description: Suggest a new rule, fixer, report format or CLI improvement.
+title: "[feature]: "
+labels: ["enhancement", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Proposals are welcome, especially new rules. The parts worth discussing
+        before any code is written are the default severity and how often the
+        rule would be wrong — please give those some thought below.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and Discussions and did not find this.
+          required: true
+        - label: I checked `expopulse doctor --rules` and this rule does not already exist.
+          required: false
+        - label: I read the [Known limitations](https://github.com/sourav2024/expopulse#known-limitations) and this is not one of them.
+          required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of change is this?
+      options:
+        - New rule
+        - New fixer (for an existing rule)
+        - New report format
+        - CLI improvement
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: >
+        Describe the situation you hit in a real project, not the solution.
+        What went wrong, and how did you find out?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What should ExpoPulse do?
+      description: >
+        The behaviour you want. For a CLI change, show the command and its
+        output. For a report format, say what consumes it.
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        ### The rest of this form applies to new rules
+
+        Skip it if you selected something else above.
+
+  - type: textarea
+    id: rule-problem
+    attributes:
+      label: What SEO, Expo or React Native problem does the rule detect?
+      description: >
+        Be specific about the real-world consequence — install size, startup
+        time, memory, a store rejection, a broken OTA update, a runtime crash.
+        Link to Expo, React Native or platform documentation if there is any.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Which category would it belong to?
+      options:
+        - code
+        - assets
+        - dependencies
+        - expo
+        - android
+        - ios
+        - performance
+        - "bundle (reserved — not implemented)"
+        - Not sure
+    validations:
+      required: false
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: What default severity should it have?
+      description: >
+        `critical` — the app is broken or will be rejected. `error` — it will
+        ship and misbehave. `warning` — it costs size, memory or
+        maintainability. `info` — a suggestion a developer may reasonably
+        decline. Note that `error` and `critical` fail CI builds by default.
+      options:
+        - info
+        - warning
+        - error
+        - critical
+        - Not sure
+    validations:
+      required: false
+
+  - type: textarea
+    id: severity-rationale
+    attributes:
+      label: Why that severity?
+      description: >
+        Justify it against the levels above. If you chose `error` or `critical`,
+        explain why failing someone's build is the right response.
+    validations:
+      required: false
+
+  - type: textarea
+    id: false-positives
+    attributes:
+      label: When would this rule be wrong?
+      description: >
+        Every rule has cases where the flagged pattern is deliberate and
+        correct. List the ones you can think of. A proposal that says "never"
+        will get pushed back on — the honest answer is what makes a rule
+        shippable.
+    validations:
+      required: false
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Example code
+      description: Something the rule should flag, and something similar it should not.
+      render: tsx
+    validations:
+      required: false
+
+  - type: dropdown
+    id: fixable
+    attributes:
+      label: Could it be fixed automatically?
+      description: >
+        A fixer writes to real files. It is only safe if the correct edit is
+        unambiguous from static analysis alone.
+      options:
+        - "No — the fix depends on intent"
+        - "Yes — the edit is unambiguous and safe"
+        - "Yes, but only behind an explicit opt-in flag"
+        - Not sure
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I would be willing to open a pull request for this.
+          required: false
