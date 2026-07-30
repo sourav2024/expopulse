@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { Command } from 'commander'
 import { EXIT_ERROR, runAnalyze } from './commands/analyze.js'
@@ -136,8 +137,30 @@ export async function main(argv: string[] = process.argv): Promise<void> {
   await buildProgram().parseAsync(argv)
 }
 
+/**
+ * True when this module is the process entry point.
+ *
+ * `process.argv[1]` must be resolved through `realpath` first: npm and pnpm
+ * install a package's `bin` as a **symlink** into `node_modules/.bin`, so argv[1]
+ * is the link path while `import.meta.url` is always the real file. Comparing
+ * them unresolved means the guard never matches under any real install — `npx
+ * expopulse`, a global install, and `node_modules/.bin/expopulse` would all exit
+ * 0 with no output, while `node dist/index.js` worked in development.
+ */
+function isEntryPoint(): boolean {
+  const entry = process.argv[1]
+  if (!entry) return false
+  if (import.meta.url === pathToFileURL(entry).href) return true
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(entry)).href
+  } catch {
+    // argv[1] does not exist on disk (an eval or a bundler shim): not us.
+    return false
+  }
+}
+
 // Auto-run only when this module is the process entry point, so that importing
 // it from a test does not execute the CLI.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isEntryPoint()) {
   await main()
 }

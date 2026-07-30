@@ -1,6 +1,6 @@
 {
   "name": "expopulse-monorepo",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Rule-based static analysis and optimisation platform for Expo applications",
   "author": "sourav2024 (https://github.com/sourav2024)",
