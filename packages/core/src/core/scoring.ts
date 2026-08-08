@@ -34,6 +34,18 @@ const WEIGHT: Record<Category, number> = {
 }
 
 /**
+ * Largest penalty any single rule may contribute to its category.
+ *
+ * Square-root damping alone was not enough: 560 info-level findings from one
+ * rule still cost ~29 points, and a handful of such rules drove a category to 0
+ * regardless of severity. Capping per rule keeps "one rule fires a lot" from
+ * reading like "everything is broken", while several distinct rules still
+ * accumulate. 15 lets a single error-level rule (12 per finding) exceed one
+ * finding's worth but never dominate on its own.
+ */
+const MAX_PENALTY_PER_RULE = 15
+
+/**
  * Diminishing returns for repeat offences of the same rule.
  *
  * Without this, a project with 300 inline styles scores 0 on code and the
@@ -42,7 +54,8 @@ const WEIGHT: Record<Category, number> = {
  */
 function dampedPenalty(count: number, unitPenalty: number): number {
   if (count <= 0) return 0
-  // Full price for the first 5, then square-root growth beyond that.
+  // Full price for the first 5, then square-root growth beyond that. The
+  // per-rule ceiling is applied by the caller, across all severities at once.
   const full = Math.min(count, 5)
   const extra = Math.max(0, count - 5)
   return unitPenalty * (full + Math.sqrt(extra))
@@ -92,9 +105,13 @@ export function computeScore(findings: Finding[], ranCategories: Set<Category>):
         if (bucket[finding.severity] === undefined) continue
         bucket[finding.severity] += 1
       }
+      // Cap the rule as a whole, not each severity bucket, so a rule emitting a
+      // mix of severities cannot quietly charge the cap several times over.
+      let rulePenalty = 0
       for (const severity of Object.keys(bucket) as Severity[]) {
-        penalty += dampedPenalty(bucket[severity], PENALTY[severity])
+        rulePenalty += dampedPenalty(bucket[severity], PENALTY[severity])
       }
+      penalty += Math.min(rulePenalty, MAX_PENALTY_PER_RULE)
     }
 
     return {

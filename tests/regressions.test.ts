@@ -8,12 +8,22 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+import type { AssetEntry, AssetModel } from '../packages/core/src/analyzers/assets/index.js'
+import { assetsRules } from '../packages/core/src/analyzers/assets/rules.js'
+import { codeRules } from '../packages/core/src/analyzers/code/rules.js'
+import { expoRules } from '../packages/core/src/analyzers/expo/rules.js'
+import {
+  configPluginPackages,
+  packageNameOf,
+  stripComments,
+} from '../packages/core/src/analyzers/deps/index.js'
 import { compareResults } from '../packages/core/src/core/compare.js'
 import { aggregateRecoverableBytes } from '../packages/core/src/core/impact.js'
 import { findingKey } from '../packages/core/src/core/rules-engine.js'
+import { computeScore } from '../packages/core/src/core/scoring.js'
 import { removeSpecifiers } from '../packages/core/src/fixers/code-fixers.js'
 import { dedupePermissionLines, sortAppJson } from '../packages/core/src/fixers/config-fixers.js'
-import type { AnalysisResult, Finding } from '../packages/core/src/shared/types.js'
+import type { AnalysisResult, Finding, FindingDraft } from '../packages/core/src/shared/types.js'
 
 const base = (over: Partial<Finding>): Finding => ({
   ruleId: 'r/x',
@@ -262,5 +272,323 @@ describe('CLI entry point', () => {
     expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+/)
 
     await fs.rm(dir, { recursive: true, force: true })
+  })
+})
+
+/**
+ * A real Expo app scored 49/100 with 1765 findings, and two rules produced
+ * most of the noise. Both reported things that are correct by construction, so
+ * the fix is suppression at the rule rather than a threshold change.
+ */
+describe('unused-asset ignores native resource directories', () => {
+  const entry = (assetPath: string): AssetEntry => ({
+    asset: {
+      path: assetPath,
+      absolutePath: `/project/${assetPath}`,
+      size: 30_000,
+      ext: path.extname(assetPath),
+      kind: assetPath.endsWith('.ttf') ? 'font' : 'image',
+    },
+    hash: 'h',
+    width: null,
+    height: null,
+    referenced: false,
+  })
+
+  const runUnusedAsset = (paths: string[]): string[] => {
+    const rule = assetsRules.find((r) => r.meta.id === 'assets/unused-asset')
+    if (!rule) throw new Error('rule not found')
+    const model: AssetModel = {
+      entries: paths.map(entry),
+      sharpAvailable: false,
+      searchText: '',
+    }
+    return rule.check(model, {} as never).map((f) => f.file ?? '')
+  }
+
+  it('does not report Android launcher icons Gradle resolves by convention', () => {
+    // Deleting these breaks the build; nothing in JS ever names them, so text
+    // search called every one of them unused.
+    const reported = runUnusedAsset([
+      'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp',
+      'android/app/src/main/res/mipmap-hdpi/ic_launcher_round.webp',
+      'android/app/src/main/res/drawable-xhdpi/notification_icon.png',
+      'android/app/src/main/res/drawable/splashscreen_logo.png',
+    ])
+    expect(reported).toEqual([])
+  })
+
+  it('does not report iOS asset-catalog images Xcode reads from the catalog', () => {
+    const reported = runUnusedAsset([
+      'ios/TruxoTracker/Images.xcassets/AppIcon.appiconset/App-Icon-1024x1024@1x.png',
+      'ios/TruxoTracker/Images.xcassets/SplashScreenLogo.imageset/image.png',
+    ])
+    expect(reported).toEqual([])
+  })
+
+  it('still reports genuinely unreferenced JS-side assets', () => {
+    const reported = runUnusedAsset([
+      'assets/images/splash_logo.png',
+      'android/app/src/main/res/mipmap-hdpi/ic_launcher.webp',
+    ])
+    expect(reported).toEqual(['assets/images/splash_logo.png'])
+  })
+
+  it('does not report fonts installed as native resources', () => {
+    const rule = assetsRules.find((r) => r.meta.id === 'assets/unused-font')
+    if (!rule) throw new Error('rule not found')
+    const model: AssetModel = {
+      entries: [entry('android/app/src/main/res/font/inter_bold.ttf'), entry('assets/fonts/x.ttf')],
+      sharpAvailable: false,
+      searchText: '',
+    }
+    expect(rule.check(model, {} as never).map((f) => f.file)).toEqual(['assets/fonts/x.ttf'])
+  })
+})
+
+describe('specifier validation', () => {
+  /**
+   * `from` and `require(` also occur in prose, so a doc comment reading
+   * `flipped from "sending" to "failed"` produced an error-severity
+   * "sending is imported but not declared in package.json".
+   */
+  it('rejects specifiers that cannot be package names', () => {
+    expect(packageNameOf('tool broke')).toBeNull()
+    expect(packageNameOf('${binding.source}')).toBeNull()
+    expect(packageNameOf('Sending')).toBeNull()
+    expect(packageNameOf('@/hooks')).toBeNull()
+  })
+
+  it('still resolves real specifiers to their package name', () => {
+    expect(packageNameOf('react-native')).toBe('react-native')
+    expect(packageNameOf('date-fns/locale/en-GB')).toBe('date-fns')
+    expect(packageNameOf('@react-native-firebase/app')).toBe('@react-native-firebase/app')
+  })
+
+  it('strips comments so prose is never scanned for imports', () => {
+    const source = [
+      '// a row that flips from "sending" to "failed"',
+      '/* see require("not-real") for context */',
+      `import x from 'real-package'`,
+    ].join('\n')
+
+    const stripped = stripComments(source)
+    expect(stripped).not.toContain('sending')
+    expect(stripped).not.toContain('not-real')
+    expect(stripped).toContain('real-package')
+  })
+
+  it('keeps string contents that merely look like comments', () => {
+    expect(stripComments(`const url = 'https://example.com/x'`)).toContain('https://example.com/x')
+  })
+})
+
+describe('config plugins count as used dependencies', () => {
+  /**
+   * A plugin listed in app.config `plugins` is loaded by prebuild but never
+   * imported, so `unused-dependency` told users to remove packages whose
+   * removal breaks the native build.
+   */
+  it('treats plugin entries as imported, including tuple form', () => {
+    const names = configPluginPackages({
+      plugins: [
+        'expo-background-task',
+        ['react-native-vision-camera', { cameraPermissionText: 'x' }],
+        './plugins/withLocalThing',
+      ],
+    } as never)
+
+    expect([...names].sort()).toEqual(['expo-background-task', 'react-native-vision-camera'])
+  })
+
+  it('returns nothing when there is no plugins array', () => {
+    expect(configPluginPackages(null).size).toBe(0)
+    expect(configPluginPackages({}).size).toBe(0)
+  })
+})
+
+describe('score damping caps any single rule', () => {
+  /**
+   * 560 findings from one info-level rule cost ~29 points, which drove the code
+   * category to 0 and made the score read as "everything is broken" when one
+   * chatty rule was firing.
+   */
+  it('does not let one noisy rule zero a category', () => {
+    const findings = Array.from({ length: 560 }, (_, i) =>
+      base({
+        ruleId: 'react/no-inline-style',
+        category: 'code',
+        severity: 'info',
+        file: `f${i}.tsx`,
+      }),
+    )
+    const score = computeScore(findings, new Set(['code']))
+    const code = score.categories.find((c) => c.category === 'code')
+    expect(code?.score).toBeGreaterThanOrEqual(85)
+  })
+
+  it('still accumulates penalties across distinct rules', () => {
+    const findings = [
+      ...Array.from({ length: 50 }, () =>
+        base({ ruleId: 'a/x', category: 'code', severity: 'warning' }),
+      ),
+      ...Array.from({ length: 50 }, () =>
+        base({ ruleId: 'b/y', category: 'code', severity: 'warning' }),
+      ),
+    ]
+    const one = computeScore(findings.slice(0, 50), new Set(['code']))
+    const two = computeScore(findings, new Set(['code']))
+    const scoreOf = (s: typeof one) => s.categories.find((c) => c.category === 'code')?.score ?? 0
+    expect(scoreOf(two)).toBeLessThan(scoreOf(one))
+  })
+})
+
+describe('missing-dependency ignores tsconfig path aliases', () => {
+  const analyseImports = async (tsconfig: string, source: string): Promise<Set<string>> => {
+    const { collectImports } = await import('../packages/core/src/analyzers/deps/index.js')
+    const fs = await import('node:fs/promises')
+    const os = await import('node:os')
+
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'expopulse-deps-'))
+    await fs.writeFile(path.join(dir, 'tsconfig.json'), tsconfig, 'utf8')
+    const file = path.join(dir, 'a.ts')
+    await fs.writeFile(file, source, 'utf8')
+
+    const found = await collectImports({
+      project: {
+        root: dir,
+        sourceFiles: [{ path: 'a.ts', absolutePath: file, size: source.length, ext: '.ts' }],
+      },
+    } as never)
+
+    await fs.rm(dir, { recursive: true, force: true })
+    return found
+  }
+
+  /**
+   * An Expo app using `@/*` had all 15 of its aliases reported as undeclared
+   * packages at error severity — enough to fail CI on a correct project.
+   */
+  it('does not treat an aliased import as a package', async () => {
+    const found = await analyseImports(
+      `{"compilerOptions":{"paths":{"@/*":["./app/*"],"@assets/*":["./assets/*"]}}}`,
+      `import { a } from '@/hooks'\nimport b from '@assets/images/logo.png'\nimport c from 'react-native'`,
+    )
+    expect([...found]).toEqual(['react-native'])
+  })
+
+  /**
+   * The alias `"@/*"` contains the characters `/*`, so stripping block comments
+   * with a regex swallowed the rest of the file and the tsconfig silently
+   * failed to parse — leaving every alias reported.
+   */
+  it('parses a tsconfig whose alias contains a block-comment sequence', async () => {
+    const found = await analyseImports(
+      `{
+        // path aliases
+        "compilerOptions": {
+          "baseUrl": ".",
+          "paths": { "@/*": ["./app/*"] },
+        },
+      }`,
+      `import { a } from '@/hooks'\nimport c from 'expo'`,
+    )
+    expect([...found]).toEqual(['expo'])
+  })
+
+  it('still reports a genuinely undeclared package', async () => {
+    const found = await analyseImports(
+      `{"compilerOptions":{"paths":{"@/*":["./app/*"]}}}`,
+      `import x from 'some-undeclared-pkg'`,
+    )
+    expect([...found]).toEqual(['some-undeclared-pkg'])
+  })
+})
+
+describe('orphaned-config-plugin ignores resolved local plugin functions', () => {
+  /**
+   * Evaluating app.config.* through @expo/config serialises a
+   * `require('./plugins/withX').withX` entry to the bare string "withX" — the
+   * function name. It looks exactly like a package name, so the rule told users
+   * to install `withSplashScreen` from npm, where no such package exists.
+   */
+  const runRule = (plugins: unknown[], dependencies: string[]): string[] => {
+    const rule = expoRules.find((r) => r.meta.id === 'expo/orphaned-config-plugin')
+    if (!rule) throw new Error('rule not found')
+    const model = {
+      config: { plugins } as never,
+      easJson: null,
+      packageJson: { name: 'app' } as never,
+      root: '/project',
+      sdkMajor: 56,
+      sdk: null,
+      dependencies: new Set(dependencies),
+    }
+    const findings = rule.check(model as never, {} as never) as FindingDraft[]
+    return findings.map((f) => String(f.data?.plugin ?? ''))
+  }
+
+  it('does not report camelCase withX function names from a resolved dynamic config', () => {
+    expect(
+      runRule(['withSplashScreen', 'withFmtConstevalFix', './plugins/withBootTracking'], []),
+    ).toEqual([])
+  })
+
+  it('still reports a real package plugin that is missing from package.json', () => {
+    expect(runRule(['react-native-vision-camera'], [])).toEqual(['react-native-vision-camera'])
+  })
+
+  it('does not suppress a declared package that merely starts with "with"', () => {
+    // Lowercase after `with` is a package name, not the plugin-function convention.
+    expect(runRule(['withings-sdk'], [])).toEqual(['withings-sdk'])
+  })
+})
+
+describe('require-in-render ignores module-mock factories', () => {
+  const findingsFor = async (file: string, source: string): Promise<number> => {
+    const { buildCodeModel } = await import('../packages/core/src/analyzers/code/parse.js')
+    const fs = await import('node:fs/promises')
+    const os = await import('node:os')
+
+    const rule = codeRules.find((r) => r.meta.id === 'performance/require-in-render')
+    if (!rule) throw new Error('rule not found')
+
+    // buildCodeModel reads from disk, so the fixture has to be a real file.
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'expopulse-rir-'))
+    const absolutePath = path.join(dir, path.basename(file))
+    await fs.writeFile(absolutePath, source, 'utf8')
+
+    const logger = {
+      debug() {},
+      info() {},
+      warn() {},
+      error() {},
+    }
+    const model = await buildCodeModel(
+      [{ path: file, absolutePath, size: source.length, ext: path.extname(file) }],
+      logger as never,
+    )
+    const count = rule.check(model, {} as never).length
+
+    await fs.rm(dir, { recursive: true, force: true })
+    return count
+  }
+
+  it('does not report require() inside jest.mock factories', async () => {
+    // 400 of 416 findings on a real app were this shape. The factory runs once
+    // when the registry resolves the module, and hoisting breaks the mock.
+    const count = await findingsFor(
+      'test/unit/hooks/useSocket.test.ts',
+      `jest.mock('@/services/x', () => ({ get: () => require('./fixture').value }))`,
+    )
+    expect(count).toBe(0)
+  })
+
+  it('still reports require() in a render path', async () => {
+    const count = await findingsFor(
+      'app/components/Row.tsx',
+      `export function Row() { const icon = require('./icon.png'); return icon }`,
+    )
+    expect(count).toBe(1)
   })
 })

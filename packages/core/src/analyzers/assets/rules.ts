@@ -28,6 +28,35 @@ const REFERENCE_HEURISTIC =
   'Assets loaded through a computed path, a remote URL, or a native resource ' +
   'directory cannot be seen this way, so confirm before deleting.'
 
+/**
+ * Native resource locations whose contents are resolved by build-tool
+ * convention, never by a string in source.
+ *
+ * Gradle compiles `res/mipmap-*`, `res/drawable-*` and friends into
+ * `R.drawable.*`; Xcode reads `*.xcassets` from the asset catalog; both look up
+ * launcher icons, splash art and notification icons by well-known name. Text
+ * search therefore finds no reference to any of them, and reporting the whole
+ * set as "unused" points the user at deleting their app icon — the one fix in
+ * this rule that breaks a build rather than shrinking it.
+ *
+ * `ios/<App>/Images.xcassets/...` and `android/app/src/main/res/...` are the
+ * paths Expo prebuild generates, so matching on the directory segment covers
+ * bare-workflow projects without needing to know the app name.
+ */
+const NATIVE_RESOURCE_SEGMENTS = [
+  /(^|\/)res\/(mipmap|drawable|values|xml|font|raw|anim|color)(-[a-z0-9-]+)?\//i,
+  /\.xcassets\//i,
+  /(^|\/)ios\/[^/]+\/(Base\.lproj|Supporting Files)\//i,
+]
+
+/**
+ * Assets a native build consumes by convention, so absence from source text
+ * says nothing about whether they are used.
+ */
+function isNativeConventionAsset(assetPath: string): boolean {
+  return NATIVE_RESOURCE_SEGMENTS.some((pattern) => pattern.test(assetPath))
+}
+
 const duplicateImage: Rule<AssetModel> = {
   meta: {
     id: 'assets/duplicate-image',
@@ -106,6 +135,8 @@ const unusedAsset: Rule<AssetModel> = {
       model.entries
         // Fonts get their own rule so the two can be configured separately.
         .filter((entry) => !entry.referenced && entry.asset.kind !== 'font')
+        // Native build inputs are resolved by convention, not by name in source.
+        .filter((entry) => !isNativeConventionAsset(entry.asset.path))
         .map((entry) => ({
           message: `${entry.asset.path} appears to be unused (${formatBytes(entry.asset.size)})`,
           rationale: REFERENCE_HEURISTIC,
@@ -207,16 +238,21 @@ const unusedFont: Rule<AssetModel> = {
   },
 
   check(model: AssetModel): FindingDraft[] {
-    return model.entries
-      .filter((entry) => entry.asset.kind === 'font' && !entry.referenced)
-      .map((entry) => ({
-        message: `Font ${entry.asset.path} is never loaded (${formatBytes(entry.asset.size)})`,
-        rationale: REFERENCE_HEURISTIC,
-        file: entry.asset.path,
-        estimatedImpact: { bytes: entry.asset.size },
-        fixable: true,
-        data: { size: entry.asset.size },
-      }))
+    return (
+      model.entries
+        .filter((entry) => entry.asset.kind === 'font' && !entry.referenced)
+        // A font in a native resource directory is loaded by the platform, not
+        // by useFonts, so text search cannot see the reference.
+        .filter((entry) => !isNativeConventionAsset(entry.asset.path))
+        .map((entry) => ({
+          message: `Font ${entry.asset.path} is never loaded (${formatBytes(entry.asset.size)})`,
+          rationale: REFERENCE_HEURISTIC,
+          file: entry.asset.path,
+          estimatedImpact: { bytes: entry.asset.size },
+          fixable: true,
+          data: { size: entry.asset.size },
+        }))
+    )
   },
 }
 
