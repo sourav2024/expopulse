@@ -10,6 +10,68 @@ released together.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-08
+
+Calibration release. Run against a real Expo 56 app, 0.1.1 reported **1769
+findings and scored it 49/100**, with three categories at 0 — almost entirely
+from rules firing on things that are correct by construction. The same project
+now reports **1278 findings**, and the only error-severity findings left are
+three genuinely undeclared dependencies.
+
+Nothing here changes what the tool can detect; it changes what it chooses to
+report. Scores and finding counts will move for every project, hence the minor
+bump rather than a patch.
+
+### Fixed
+
+- **Native resource directories are no longer reported as unused assets.**
+  Gradle resolves `res/mipmap-*` and `res/drawable-*` into `R.drawable.*`, and
+  Xcode reads `*.xcassets` from the asset catalog, so no string in source ever
+  names them. `unused-asset` and `unused-font` called all of them dead — pointing
+  users at deleting their app icon, the one "fix" in the rule that breaks a build
+  instead of shrinking it. 43 findings to 3 on the test project.
+- **`require()` inside `jest.mock` factories is no longer a render-path cost.**
+  The factory runs once when the mock registry resolves the module, and hoisting
+  the require would break the mock. 418 findings to 16.
+- **Prose in comments is no longer parsed as an import.** The specifier regex
+  matched `from` and `require(` inside doc comments, so a sentence like
+  `flips from "sending" to "failed"` produced an error-severity *"sending is
+  imported but not declared in package.json"*. Comments are now stripped before
+  scanning, and every specifier is validated against the npm name grammar.
+- **tsconfig `paths` aliases are no longer reported as missing packages.** An
+  app using `@/*` had all of its aliases flagged at error severity — enough to
+  fail CI on a correct project. Aliases and `baseUrl`-relative imports are now
+  resolved and excluded. This also fixes a JSONC parsing bug where the alias
+  `"@/*"` contains `/*` and a regex comment-stripper swallowed the rest of the
+  file.
+- **Config plugins count as used dependencies.** A plugin is named as a string
+  in `plugins` and never imported, so `unused-dependency` recommended removing
+  packages whose removal breaks prebuild.
+- **`maxDependencyBytes` raised from 1 MB to 25 MB.** A React Native library
+  ships its full native source, so 1 MB flagged 36 dependencies of a healthy
+  app, `react-native` among them.
+- **`react/no-inline-style` lowered to `info`.** The finding is real but only
+  measurable inside frequently re-rendering lists, and at `warning` this one rule
+  produced 561 findings and dominated the score.
+
+### Added
+
+- **`app.config.js` / `app.config.ts` are now evaluated** through the project's
+  own `@expo/config`, so dynamic configs that read env vars or spread `app.json`
+  are analysed as the build actually sees them. Previously these were skipped,
+  which silently scored the Expo category 100/100, or fell back to `app.json` and
+  produced findings that contradicted the real config. Best-effort: a missing
+  `@expo/config`, or a config that throws, falls back as before rather than
+  failing the run.
+
+### Changed
+
+- **No single rule can dominate a category score.** Square-root damping alone
+  still let 560 findings from one rule cost ~29 points and drive a category to 0.
+  A per-rule ceiling now caps that contribution, so "one chatty rule is firing"
+  no longer reads as "everything is broken" — while distinct rules still
+  accumulate normally.
+
 ## [0.1.1] - 2026-07-30
 
 ### Fixed
@@ -133,5 +195,7 @@ Standard semantic versioning, with these specifics:
 Scoring changes after 1.0 will be treated as breaking, since they change CI
 outcomes for unchanged projects.
 
-[Unreleased]: https://github.com/sourav2024/expopulse/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/sourav2024/expopulse/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/sourav2024/expopulse/compare/v0.1.1...v0.2.0
+[0.1.1]: https://github.com/sourav2024/expopulse/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/sourav2024/expopulse/releases/tag/v0.1.0

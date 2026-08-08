@@ -136,21 +136,82 @@ async function resolveExpoConfig(
 
   if (dynamicPath) {
     logger.debug(`found dynamic config at ${toRelative(root, dynamicPath)}`)
+
+    // Prefer the real thing: `@expo/config` runs the same resolution Expo's own
+    // CLI does, so a dynamic config that reads env vars or spreads app.json
+    // still yields the config the build will actually see. Falling back to
+    // app.json silently produced findings that contradicted the real config,
+    // and skipping entirely scored the category a misleading 100/100.
+    const evaluated = await evaluateDynamicConfig(root, logger)
+    if (evaluated) {
+      logger.debug('resolved dynamic config via @expo/config')
+      return evaluated
+    }
+
     if (!fromJson) {
       warnings.push(
-        `${path.basename(dynamicPath)} is a dynamic config and was not evaluated; ` +
-          'Expo configuration checks were skipped. Add an app.json for full analysis.',
+        `${path.basename(dynamicPath)} could not be evaluated and there is no app.json, ` +
+          'so Expo configuration checks were skipped. Install `@expo/config` (it ships with ' +
+          'expo) or add an app.json for full analysis.',
       )
       return null
     }
     warnings.push(
-      `${path.basename(dynamicPath)} may override values from app.json; ` +
-        'Expo findings are based on app.json only.',
+      `${path.basename(dynamicPath)} could not be evaluated, so Expo findings are based on ` +
+        'app.json only and may not reflect values the dynamic config overrides.',
     )
   }
 
   if (!fromJson) return null
   return fromJson as ExpoConfig
+}
+
+/**
+ * Evaluate `app.config.*` through Expo's own config resolver.
+ *
+ * Optional and best-effort: `@expo/config` is a transitive dependency of every
+ * Expo app but is not a dependency of this tool, so a missing module, a config
+ * that throws on a missing env var, or a native import all mean "fall back"
+ * rather than "fail the run". Resolved from the project root so we load the
+ * project's copy rather than one hoisted next to the CLI.
+ */
+async function evaluateDynamicConfig(root: string, logger: Logger): Promise<ExpoConfig | null> {
+  try {
+    const { createRequire } = await import('node:module')
+    // A path inside the project, so require resolution starts there.
+    const require = createRequire(path.join(root, 'noop.js'))
+    const { getConfig } = require('@expo/config') as {
+      getConfig: (
+        projectRoot: string,
+        options?: { skipSDKVersionRequirement?: boolean; skipPlugins?: boolean },
+      ) => { exp: ExpoConfig }
+    }
+
+    // getConfig warns on stderr about plugins it cannot resolve (local plugins
+    // referenced by path, for instance). That is Expo talking about the user's
+    // project mid-analysis, which reads as our output; we surface config
+    // problems through findings instead.
+    const originalWarn = console.warn
+    console.warn = () => {}
+    try {
+      const { exp } = getConfig(root, {
+        // A missing SDK version must not abort resolution.
+        skipSDKVersionRequirement: true,
+        // Plugins are NOT skipped: `skipPlugins` strips the `plugins` array
+        // from the result, and the deps layer needs it to know which packages
+        // the build loads without importing them.
+        skipPlugins: false,
+      })
+      return exp ?? null
+    } finally {
+      console.warn = originalWarn
+    }
+  } catch (err) {
+    logger.debug(
+      `could not evaluate dynamic config: ${err instanceof Error ? err.message : String(err)}`,
+    )
+    return null
+  }
 }
 
 /** Determine the Expo SDK major from config, falling back to the dependency. */

@@ -74,7 +74,12 @@ export const noInlineStyle: Rule<CodeModel> = {
   meta: {
     id: 'react/no-inline-style',
     category: 'code',
-    severity: 'warning',
+    // Info, not warning: the finding is real but the cost is only measurable
+    // inside frequently re-rendering lists, and modern RN no longer gains much
+    // from StyleSheet.create. At warning severity this rule alone produced 560
+    // findings on a healthy app and dominated the score, which read as "the
+    // tool is miscalibrated" rather than "fix these".
+    severity: 'info',
     description: 'JSX `style` prop given an inline object literal.',
     rationale:
       'An object literal in JSX is rebuilt on every render, so the style object is never ' +
@@ -551,6 +556,12 @@ export const requireInRender: Rule<CodeModel> = {
     const findings: FindingDraft[] = []
 
     for (const file of model.files) {
+      // Test files are dominated by `jest.mock('x', () => require('y'))`, where
+      // the require lives in a factory by design — the mock registry calls it
+      // once, and hoisting it would break the mock. Tests also never ship, so
+      // the per-call cost this rule is about does not apply to them.
+      if (isTestFile(file.file)) continue
+
       traverse(file.ast, {
         CallExpression(path) {
           if (path.node.callee.type !== 'Identifier' || path.node.callee.name !== 'require') return
@@ -559,6 +570,10 @@ export const requireInRender: Rule<CodeModel> = {
 
           const fn = path.getFunctionParent()
           if (!fn) return
+
+          // A require inside a module-mock factory is the documented way to
+          // write these, in test files or not.
+          if (isInsideMockFactory(path)) return
 
           findings.push(
             at(
@@ -573,6 +588,37 @@ export const requireInRender: Rule<CodeModel> = {
 
     return findings
   },
+}
+
+/**
+ * Is this call inside a module-mock factory — `jest.mock(id, () => …)` or the
+ * `jest.doMock` / `vi.mock` / `vi.doMock` equivalents?
+ *
+ * The factory runs once when the mock registry resolves the module, so a
+ * `require()` in there is idiomatic rather than a per-render cost.
+ */
+function isInsideMockFactory(path: NodePath<t.CallExpression>): boolean {
+  const MOCK_METHODS = new Set(['mock', 'doMock'])
+  const MOCK_OBJECTS = new Set(['jest', 'vi'])
+
+  let current: NodePath | null = path.parentPath
+  while (current) {
+    if (current.isCallExpression()) {
+      const callee = current.node.callee
+      if (
+        callee.type === 'MemberExpression' &&
+        callee.object.type === 'Identifier' &&
+        MOCK_OBJECTS.has(callee.object.name) &&
+        callee.property.type === 'Identifier' &&
+        MOCK_METHODS.has(callee.property.name)
+      ) {
+        return true
+      }
+    }
+    current = current.parentPath
+  }
+
+  return false
 }
 
 /** Best-effort name for a function-like node, for finding messages. */

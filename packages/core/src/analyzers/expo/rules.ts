@@ -37,6 +37,24 @@ function isLocalPluginPath(name: string): boolean {
 }
 
 /**
+ * True for a plugin entry that is really a local plugin *function*, named after
+ * the JS identifier it was defined as rather than a package.
+ *
+ * Now that `app.config.*` is evaluated through `@expo/config`, a config that
+ * does `require('./plugins/withSplashScreen').withSplashScreen` reaches us as
+ * the bare string `"withSplashScreen"` — the function's name, serialised. That
+ * is indistinguishable by lookup from a missing package, so this rule told
+ * users to install `withSplashScreen` from npm, where it does not exist.
+ *
+ * npm names are lowercase by convention and universally in practice, while the
+ * `withX` config-plugin naming convention is camelCase, so requiring a capital
+ * after `with` separates the two without suppressing any real package.
+ */
+function isLocalPluginFunctionName(name: string): boolean {
+  return /^with[A-Z]/.test(name)
+}
+
+/**
  * Map a plugin entry to the package.json key that would provide it.
  *
  * Plugins are often referenced by a deep path (`expo-notifications/plugin`) or
@@ -647,6 +665,8 @@ const orphanedConfigPlugin: Rule<ExpoModel> = {
     const findings: FindingDraft[] = []
     for (const name of pluginNames(model.config)) {
       if (isLocalPluginPath(name)) continue
+      // A resolved local plugin arrives as its function name, not a package.
+      if (isLocalPluginFunctionName(name)) continue
 
       const pkg = pluginPackageName(name)
       if (model.dependencies.has(pkg)) continue

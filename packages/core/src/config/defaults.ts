@@ -29,7 +29,12 @@ export const DEFAULT_THRESHOLDS: Thresholds = {
   // 500 KB: above this a bundled image is nearly always worth compressing.
   maxImageBytes: 500 * 1024,
   maxAssetBytes: 2 * 1024 * 1024,
-  maxDependencyBytes: 1024 * 1024,
+  // 25 MB installed. A React Native library ships its full native source —
+  // android/, ios/, prebuilt binaries and fixtures — so 1 MB flagged 36 of a
+  // healthy app's dependencies, including react-native itself. At 25 MB the
+  // rule surfaces the handful of genuinely heavy packages instead of the
+  // baseline cost of using Expo.
+  maxDependencyBytes: 25 * 1024 * 1024,
   minScore: 80,
 }
 
