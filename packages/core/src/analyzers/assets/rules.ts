@@ -74,6 +74,10 @@ const duplicateImage: Rule<AssetModel> = {
     const byHash = new Map<string, AssetEntry[]>()
     for (const entry of model.entries) {
       if (!entry.hash) continue
+      // Native resources are consumed by name from XML and asset catalogs.
+      // Identical launcher layers (foreground and monochrome are often the same
+      // bitmap) are both required, and deleting either breaks the native build.
+      if (isNativeConventionAsset(entry.asset.path)) continue
       const group = byHash.get(entry.hash)
       if (group) group.push(entry)
       else byHash.set(entry.hash, [entry])

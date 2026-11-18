@@ -8,7 +8,11 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-import type { AssetEntry, AssetModel } from '../packages/core/src/analyzers/assets/index.js'
+import {
+  type AssetEntry,
+  type AssetModel,
+  referenceNames,
+} from '../packages/core/src/analyzers/assets/index.js'
 import { assetsRules } from '../packages/core/src/analyzers/assets/rules.js'
 import { codeRules } from '../packages/core/src/analyzers/code/rules.js'
 import {
@@ -590,5 +594,21 @@ describe('require-in-render ignores module-mock factories', () => {
       `export function Row() { const icon = require('./icon.png'); return icon }`,
     )
     expect(count).toBe(1)
+  })
+})
+
+describe('asset reference names', () => {
+  // Metro picks @2x/@3x and .ios/.android variants from the base require(),
+  // so `fix` must never treat them as unused when the base name is referenced.
+  it('maps density and platform variants to the name source code uses', () => {
+    expect(referenceNames('wordmark@2x.png')).toEqual(['wordmark@2x.png', 'wordmark.png'])
+    expect(referenceNames('wordmark@1.5x.png')).toContain('wordmark.png')
+    expect(referenceNames('logo.ios.png')).toContain('logo.png')
+    expect(referenceNames('logo@3x.android.png')).toContain('logo.png')
+  })
+
+  it('leaves ordinary names alone', () => {
+    expect(referenceNames('hero-banner.png')).toEqual(['hero-banner.png'])
+    expect(referenceNames('icon@home.png')).toEqual(['icon@home.png'])
   })
 })

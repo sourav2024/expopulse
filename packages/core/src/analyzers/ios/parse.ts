@@ -63,11 +63,35 @@ export interface PodfileFacts {
 export interface IosNativeFacts {
   plist: InfoPlistFacts | null
   podfile: PodfileFacts | null
-  /** True when ios/PrivacyInfo.xcprivacy exists. */
+  /** True when a PrivacyInfo.xcprivacy exists in ios/ or ios/<App>/. */
   hasPrivacyManifest: boolean
 }
 
 export const PRIVACY_MANIFEST_RELATIVE = 'ios/PrivacyInfo.xcprivacy'
+
+/**
+ * Whether the app ships a privacy manifest.
+ *
+ * Expo prebuild writes it into the app target folder, `ios/<AppName>/`, which
+ * is also where Xcode puts it for a bare project; a hand-added one sometimes
+ * sits at `ios/` itself. Checking only the latter reported a missing manifest
+ * for every prebuilt app. Pods are excluded: an SDK's own manifest does not
+ * cover the app.
+ */
+export async function findPrivacyManifest(root: string): Promise<boolean> {
+  if (await exists(path.join(root, PRIVACY_MANIFEST_RELATIVE))) return true
+  try {
+    const matches = await fg('ios/*/PrivacyInfo.xcprivacy', {
+      cwd: root,
+      ignore: ['**/Pods/**', '**/build/**'],
+      onlyFiles: true,
+      dot: false,
+    })
+    return matches.length > 0
+  } catch {
+    return false
+  }
+}
 export const PODFILE_RELATIVE = 'ios/Podfile'
 
 async function readTextOrNull(absolutePath: string): Promise<string | null> {
@@ -375,7 +399,7 @@ export async function parseIosNative(root: string): Promise<IosNativeFacts> {
   const [plist, podfile, hasPrivacyManifest] = await Promise.all([
     parseInfoPlist(root),
     parsePodfile(root),
-    exists(path.join(root, PRIVACY_MANIFEST_RELATIVE)),
+    findPrivacyManifest(root),
   ])
   return { plist, podfile, hasPrivacyManifest }
 }

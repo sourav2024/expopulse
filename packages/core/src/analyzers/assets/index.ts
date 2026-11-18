@@ -137,6 +137,25 @@ async function buildSearchText(ctx: AnalyzerContext): Promise<string> {
   return chunks.join('\n')
 }
 
+/**
+ * Names under which source code can refer to an asset file.
+ *
+ * Metro resolves `require('./logo.png')` to `logo@2x.png` / `logo@3x.png` on
+ * high-density screens and to `logo.ios.png` / `logo.android.png` per platform,
+ * so those files are used whenever the base name is, although their own file
+ * name never appears in source. Matching only the literal basename called
+ * every density variant unused, and `fix` deleted them: images went blurry on
+ * most phones, or disappeared where no base file existed.
+ */
+export function referenceNames(basename: string): string[] {
+  const names = new Set([basename])
+  const base = basename
+    .replace(/\.(ios|android|native|web)(?=\.[^.]+$)/i, '')
+    .replace(/@\d+(?:\.\d+)?x(?=\.[^.]+$)/i, '')
+  names.add(base)
+  return [...names]
+}
+
 export const assetsAnalyzer: Analyzer<AssetModel> = {
   name: 'assets',
   category: 'assets',
@@ -170,7 +189,9 @@ export const assetsAnalyzer: Analyzer<AssetModel> = {
         hash,
         width,
         height,
-        referenced: searchText.includes(path.basename(asset.path)),
+        referenced: referenceNames(path.basename(asset.path)).some((name) =>
+          searchText.includes(name),
+        ),
       } satisfies AssetEntry
     })
 

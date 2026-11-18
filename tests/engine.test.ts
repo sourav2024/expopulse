@@ -193,6 +193,44 @@ describe('analyze', () => {
   })
 })
 
+describe('ios privacy manifest', () => {
+  const plist =
+    '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict>' +
+    '<key>CFBundleName</key><string>App</string></dict></plist>\n'
+
+  async function privacyFindings(): Promise<number> {
+    const cfg = config()
+    const { project } = await scanProject(cfg, silentLogger)
+    const result = await analyze({
+      config: cfg,
+      logger: silentLogger,
+      analyzers: allAnalyzers,
+      project,
+    })
+    return result.findings.filter((f) => f.ruleId === 'ios/missing-privacy-manifest').length
+  }
+
+  it('finds the manifest prebuild writes into the app target folder', async () => {
+    // Expo prebuild puts it at ios/<AppName>/PrivacyInfo.xcprivacy; only
+    // checking ios/PrivacyInfo.xcprivacy flagged every prebuilt app.
+    await scaffold({
+      'package.json': '{"name":"app"}',
+      'ios/SampleApp/Info.plist': plist,
+      'ios/SampleApp/PrivacyInfo.xcprivacy': plist,
+    })
+    expect(await privacyFindings()).toBe(0)
+  })
+
+  it('does not count a manifest that only a pod ships', async () => {
+    await scaffold({
+      'package.json': '{"name":"app"}',
+      'ios/SampleApp/Info.plist': plist,
+      'ios/Pods/SomeSdk/PrivacyInfo.xcprivacy': plist,
+    })
+    expect(await privacyFindings()).toBe(1)
+  })
+})
+
 describe('fix planning', () => {
   it('never deletes every copy of a duplicated asset', async () => {
     // duplicate-image and unused-asset both target duplicated unused files.
@@ -235,6 +273,45 @@ describe('fix planning', () => {
       .filter((p) => p.ruleId === ruleId)
       .flatMap((p) => p.actions.filter((a) => a.kind === 'delete').map((a) => a.file))
   }
+
+  it('never deletes @2x/@3x density variants of a referenced image', async () => {
+    await scaffold({
+      'package.json': '{"name":"app"}',
+      'src/Logo.tsx': 'export const logo = require("../assets/wordmark.png")\n',
+    })
+    await fs.mkdir(path.join(root, 'assets'), { recursive: true })
+    await fs.writeFile(path.join(root, 'assets/wordmark.png'), Buffer.from('1x'))
+    await fs.writeFile(path.join(root, 'assets/wordmark@2x.png'), Buffer.from('2x-bitmap'))
+    await fs.writeFile(path.join(root, 'assets/wordmark@3x.png'), Buffer.from('3x-bitmap-data'))
+    await fs.writeFile(path.join(root, 'assets/orphan@2x.png'), Buffer.from('orphan'))
+
+    expect(await plannedDeletions('assets/unused-asset')).toEqual(['assets/orphan@2x.png'])
+  })
+
+  it('does not report or delete identical native launcher icon layers', async () => {
+    // Prebuild often writes byte-identical foreground and monochrome launcher
+    // layers. Both are required by name from XML; deleting one breaks the
+    // Android build, and nothing in JS ever references either.
+    const bytes = Buffer.from('identical-launcher-layer')
+    await scaffold({ 'package.json': '{"name":"app"}' })
+    for (const density of ['mdpi', 'xxxhdpi']) {
+      const dir = path.join(root, `android/app/src/main/res/mipmap-${density}`)
+      await fs.mkdir(dir, { recursive: true })
+      await fs.writeFile(path.join(dir, 'ic_launcher_foreground.webp'), bytes)
+      await fs.writeFile(path.join(dir, 'ic_launcher_monochrome.webp'), bytes)
+    }
+
+    const cfg = config()
+    const { project } = await scanProject(cfg, silentLogger)
+    const result = await analyze({
+      config: cfg,
+      logger: silentLogger,
+      analyzers: allAnalyzers,
+      project,
+    })
+    expect(result.findings.filter((f) => f.ruleId === 'assets/duplicate-image')).toEqual([])
+    expect(await plannedDeletions('assets/duplicate-image')).toEqual([])
+  })
 
   it('never deletes a duplicate copy that source code still requires', async () => {
     // 0.2.0 deleted one of two identical, both-referenced images without
