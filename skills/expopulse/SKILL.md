@@ -61,7 +61,9 @@ Use `references/report-template.md`. Lead with release blockers, give file:line 
 
 Follow `references/fixing.md`. In short: clean git tree first, `fix --dry-run`, then apply **one approved rule at a time** with `fix --rule <id> --yes` (without `--yes` a non-interactive shell declines and exits 0, so nothing changes), record the backup id, re-run the analysis, and roll back with `fix --rollback <id>` if anything regresses. Never use `--no-backup`.
 
-Do **not** auto-fix `assets/duplicate-image` when more than one copy is referenced: ExpoPulse 0.2.0 deletes the redundant copy without updating its `require`, which breaks the build. Update the references by hand instead.
+Three ExpoPulse 0.2.0 fixes can break a working app. Remove these from the plan, and handle them by hand:
+- `assets/duplicate-image` when the removed copy is still `require`d, or is a native launcher layer
+- `assets/unused-asset` on `@2x`/`@3x`/`.ios`/`.android` variants of a referenced image
 
 Non-fixable findings are fixed by hand, with the user's approval, using the recommendation in the finding (for example `npx expo install --fix` for version mismatches).
 

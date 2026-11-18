@@ -234,7 +234,7 @@ const missingPrivacyManifest: Rule<IosModel> = {
     id: 'ios/missing-privacy-manifest',
     category: 'ios',
     severity: 'warning',
-    description: 'ios/PrivacyInfo.xcprivacy is absent.',
+    description: 'No PrivacyInfo.xcprivacy in ios/ or the app target folder.',
     rationale:
       'Apple requires a privacy manifest declaring an approved reason for every ' +
       '"required reason API" the app or its SDKs call — file timestamps, disk space, ' +
@@ -242,9 +242,9 @@ const missingPrivacyManifest: Rule<IosModel> = {
       'so submissions without the manifest draw an automated email from App Store Connect ' +
       'and can be rejected.',
     recommendation:
-      'Add ios/PrivacyInfo.xcprivacy declaring your required-reason API usage and any data ' +
-      'collected. Recent Expo SDKs generate one during prebuild — upgrading and re-running ' +
-      'prebuild is usually the least effort.',
+      'Add a PrivacyInfo.xcprivacy to the app target (ios/<AppName>/) declaring your ' +
+      'required-reason API usage and any data collected. In a managed project, set ' +
+      '`ios.privacyManifests` in app.json and re-run prebuild; recent Expo SDKs generate one.',
   },
 
   check(model): FindingDraft[] {
@@ -253,7 +253,7 @@ const missingPrivacyManifest: Rule<IosModel> = {
     return [
       {
         message:
-          'No PrivacyInfo.xcprivacy privacy manifest was found in ios/; Apple requires one ' +
+          'No PrivacyInfo.xcprivacy privacy manifest was found in ios/ or ios/<AppName>/; Apple requires one ' +
           'for apps using required-reason APIs.',
         file: 'ios/',
       },

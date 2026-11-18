@@ -27,7 +27,8 @@ npx -y expopulse@0.2.0 fix --no-cache --yes --rule code/unused-import
 - Read the output. It reports files changed, bytes saved and a **backup id**. Write the backup id down.
 - Never pass `--no-backup`.
 - `--webp` converts PNG/JPEG to WebP and **does not update imports**. Avoid it unless the user wants to update every reference afterwards.
-- `assets/duplicate-image`: only auto-fix when the copy being removed is itself unreferenced. Otherwise, re-point its `require`s at the kept copy by hand first. 0.2.0 does not update references.
+- `assets/duplicate-image`: only auto-fix when the copy being removed is itself unreferenced and isn't a native resource (`android/**/res/`, `*.xcassets`). Otherwise re-point its `require`s at the kept copy by hand first. 0.2.0 doesn't update references and doesn't skip native launcher layers.
+- `assets/unused-asset`: in 0.2.0, remove `@2x`/`@3x`/`.ios`/`.android` variants of a referenced image from the plan. Metro loads them from the base `require`.
 
 ## After
 

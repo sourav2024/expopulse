@@ -18,6 +18,22 @@ released together.
   deletes only unreferenced copies, and lists any other referenced copies under
   `data.relink` for the user to re-point by hand. A group with nothing safe to
   delete is no longer marked fixable.
+- **`fix` no longer deletes density and platform variants of used images.**
+  Metro loads `logo@2x.png`, `logo@3x.png` and `logo.ios.png` from
+  `require('./logo.png')`, but asset reference detection only matched the literal
+  file name, so `unused-asset` reported them and `fix` deleted them. Images
+  went blurry on high-density screens. Variants now count as referenced
+  whenever their base name is.
+- **Identical native launcher layers are no longer duplicates.** Prebuild often
+  writes byte-identical `ic_launcher_foreground` and `ic_launcher_monochrome`
+  bitmaps into every `mipmap-*` folder. `duplicate-image` reported them and `fix`
+  deleted one, breaking the Android build. Native resource folders
+  (`res/mipmap-*`, `res/drawable-*`, `*.xcassets`) are now excluded, as they
+  already were for `unused-asset`.
+- **`ios/missing-privacy-manifest` finds the manifest prebuild generates.** It
+  only checked `ios/PrivacyInfo.xcprivacy`, but prebuild and Xcode put it in
+  `ios/<AppName>/`, so every prebuilt app got a false release-blocker warning.
+  Manifests shipped only by pods still don't count.
 
 ### Added
 

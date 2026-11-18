@@ -55,7 +55,7 @@ Same CNG rule: fix in `app.json` → `ios.infoPlist` / `ios.privacyManifests` wh
 | `ios/empty-usage-description` | error | — | B | Usually a config plugin with no string supplied. Set the plugin option. |
 | `ios/generic-usage-description` | warning | — | R | Rewrite to name the feature and benefit ("Photos you attach to a report are uploaded with it"). Draft wording for the user; don't invent features. |
 | `ios/arbitrary-loads-enabled` | warning | — | R | Prefer per-domain exceptions; App Review asks for justification. |
-| `ios/missing-privacy-manifest` | warning | — | B | Treat as a blocker: App Store Connect flags missing required-reason API declarations. Recent SDKs generate it during prebuild. |
+| `ios/missing-privacy-manifest` | warning | — | B | First check `ios/<AppName>/PrivacyInfo.xcprivacy`: 0.2.0 only looks at `ios/PrivacyInfo.xcprivacy`, so every prebuilt app is a false positive. If it's really missing, it's a blocker; set `ios.privacyManifests` in app.json. |
 | `ios/missing-encryption-declaration` | info | — | H | Saves a manual export-compliance question on every upload. |
 | `ios/background-mode-unjustified` | info | — | R | Check the feature exists; unused background modes draw review questions. |
 | `ios/deployment-target-low` | info | — | H | Informational. |
@@ -66,9 +66,9 @@ Reference detection is **textual**: a file name that never appears in source or 
 
 | Rule | Default | Auto-fix | Bucket | Check before acting |
 |---|---|---|---|---|
-| `assets/unused-asset` | warning | yes | S | Verify as above. Native `res/` and `*.xcassets` are already excluded. |
+| `assets/unused-asset` | warning | yes | S | Verify as above. **`name@2x.png`, `name@3x.png`, `name.ios.png` are used whenever `name.png` is required**; 0.2.0 misses this and would delete them. Native `res/` and `*.xcassets` are already excluded. |
 | `assets/unused-font` | warning | yes | S | Fonts are often loaded by family name in `useFonts({...})` or a config plugin; search the family name too. |
-| `assets/duplicate-image` | warning | yes | S | **Do not auto-fix if more than one copy is referenced**: 0.2.0 deletes the redundant copy without updating its `require`. Re-point the references by hand, then delete. |
+| `assets/duplicate-image` | warning | yes | S | **Do not auto-fix in 0.2.0** if more than one copy is referenced (it deletes the copy without updating its `require`), or if any copy is under `android/**/res/` or `*.xcassets` (identical launcher layers such as foreground/monochrome are both required by name). Re-point references by hand, then delete. |
 | `assets/oversized-image` | warning | yes | S | The fix re-encodes in place (lossy). Ask whether design-critical images (brand, splash) may be recompressed; check visually afterwards. |
 | `assets/oversized-asset` | warning | — | S | Videos, Lottie, JSON: consider streaming from a CDN instead of bundling. |
 | `assets/image-dimensions-excessive` | info | — | S | Resize to 3× the largest rendered size. |
