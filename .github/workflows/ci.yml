@@ -18,15 +18,21 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
+      # pnpm 11 itself needs Node 22.13+, so install and build on 22; the
+      # tests and the CLI then run on the matrix version (the packages support
+      # Node >= 20 at runtime).
       - uses: actions/setup-node@v5
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm lint
-      - run: pnpm test
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+      - run: node --version && npx --no-install vitest run
       # The demo app contains deliberate problems, so exit 1 (findings) is the
       # expected result; exit 2 would mean the CLI itself broke.
       - name: CLI smoke test on the demo app
