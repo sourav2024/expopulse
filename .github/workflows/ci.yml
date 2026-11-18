@@ -32,6 +32,9 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node }}
+          # v5 caches by packageManager automatically, which runs pnpm on this
+          # Node version; pnpm 11 cannot start on Node 20.
+          package-manager-cache: false
       - run: node --version && npx --no-install vitest run
       # The demo app contains deliberate problems, so exit 1 (findings) is the
       # expected result; exit 2 would mean the CLI itself broke.
