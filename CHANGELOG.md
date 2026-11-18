@@ -25,6 +25,17 @@ released together.
   check that the published tarball has no `workspace:` dependency), plus a
   tag-triggered release workflow that publishes both packages with provenance.
 
+- **Agent Skill** (`skills/expopulse`) for Claude Code, Codex and other coding
+  agents, installable with `npx skills add sourav2024/expopulse` or as a Claude
+  Code plugin. It triages findings into release blockers, store-review risk,
+  size, runtime performance and hygiene, verifies textual "unused" findings
+  before anything is deleted, and applies fixes one approved rule at a time with
+  backups and rollback. It includes a per-rule verification guide for all 59
+  rules and `summarize.mjs`, which condenses a JSON report of any size and
+  counts each file once in the estimated savings.
+- `tests/skill.test.ts` fails when rule IDs, severities, fixability, CLI flags
+  or the pinned version drift between the code and the skill.
+
 ## [0.2.0] - 2026-08-08
 
 Calibration release. Run against a real Expo 56 app, 0.1.1 reported **1769
