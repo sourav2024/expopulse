@@ -1,0 +1,9 @@
+{
+  "name": "expopulse",
+  "version": "0.2.0",
+  "description": "Release-readiness, app-size and performance review for Expo / React Native apps, driven by the ExpoPulse analyzer.",
+  "author": { "name": "sourav2024" },
+  "license": "MIT",
+  "repository": "https://github.com/sourav2024/expopulse",
+  "keywords": ["expo", "react-native", "app-size", "app-store", "play-store", "performance"]
+}

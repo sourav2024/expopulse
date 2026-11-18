@@ -19,7 +19,7 @@ npx expopulse analyze
 No configuration needed to start. No API keys, no account, no telemetry — every
 check runs locally against files already on disk.
 
-> **Status: 0.1.0.** Rule IDs and CLI flags may still change before 1.0; see the
+> **Status: 0.x.** Rule IDs and CLI flags may still change before 1.0; see the
 > [versioning strategy](CHANGELOG.md#versioning-strategy). Pin an exact version if
 > you gate CI on the score.
 
@@ -101,6 +101,26 @@ extensions, so it stays behind `--webp` and leaves import updates to you.
 expopulse compare --save baseline.json      # record the current state
 expopulse compare --baseline baseline.json  # diff against it
 ```
+
+## Use with coding agents
+
+ExpoPulse ships an Agent Skill that teaches Claude Code, Codex and other coding
+agents to use the CLI the way a senior React Native engineer would:
+
+- triage release blockers before size wins
+- verify "unused" findings before deleting anything
+- fix one approved rule at a time, with rollback
+
+```bash
+npx skills add sourav2024/expopulse          # any agent, via skills.sh
+```
+
+In Claude Code you can also install it as a plugin:
+`/plugin marketplace add sourav2024/expopulse`, then
+`/plugin install expopulse@expopulse`.
+
+Then ask: *"Is this Expo app ready for the Play Store?"* or *"Why is our app
+download so big?"* The skill lives in [skills/expopulse](skills/expopulse).
 
 ## Analysis layers
 
@@ -203,7 +223,7 @@ node ../../apps/cli/dist/index.js analyze
 
 ## Known limitations
 
-These are real constraints in 0.1.0, not oversights:
+These are real constraints in 0.x, not oversights:
 
 - **Dynamic `app.config.ts` is not evaluated.** Expo configs can read
   environment variables, so static analysis cannot resolve them safely. When one

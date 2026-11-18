@@ -29,7 +29,8 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "format": "biome format --write ."
+    "format": "biome format --write .",
+    "skill:zip": "rm -f dist/expopulse-skill.zip && mkdir -p dist && cp LICENSE skills/expopulse/LICENSE.txt && cd skills/expopulse && zip -qrX ../../dist/expopulse-skill.zip . -x '.*' && rm LICENSE.txt && cd ../.. && unzip -l dist/expopulse-skill.zip"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

@@ -1,0 +1,11 @@
+{
+  "name": "expopulse",
+  "owner": { "name": "sourav2024" },
+  "plugins": [
+    {
+      "name": "expopulse",
+      "source": "./",
+      "description": "Release-readiness, app-size and performance review for Expo / React Native apps."
+    }
+  ]
+}
