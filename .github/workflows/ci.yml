@@ -29,6 +29,11 @@ jobs:
       - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm lint
+      - name: Published tarballs contain no workspace protocol
+        run: |
+          cd apps/cli && pnpm pack --pack-destination /tmp/pack > /dev/null
+          tar -xzf /tmp/pack/expopulse-*.tgz -C /tmp/pack
+          ! grep -q '"workspace:' /tmp/pack/package/package.json
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node }}
@@ -46,8 +51,3 @@ jobs:
           set -e
           test "$code" -eq 1
           node skills/expopulse/scripts/summarize.mjs /tmp/report.json > /dev/null
-      - name: Published tarballs contain no workspace protocol
-        run: |
-          cd apps/cli && pnpm pack --pack-destination /tmp/pack > /dev/null
-          tar -xzf /tmp/pack/expopulse-*.tgz -C /tmp/pack
-          ! grep -q '"workspace:' /tmp/pack/package/package.json
