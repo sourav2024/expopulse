@@ -11,12 +11,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 import type { AssetEntry, AssetModel } from '../packages/core/src/analyzers/assets/index.js'
 import { assetsRules } from '../packages/core/src/analyzers/assets/rules.js'
 import { codeRules } from '../packages/core/src/analyzers/code/rules.js'
-import { expoRules } from '../packages/core/src/analyzers/expo/rules.js'
 import {
   configPluginPackages,
   packageNameOf,
   stripComments,
 } from '../packages/core/src/analyzers/deps/index.js'
+import { expoRules } from '../packages/core/src/analyzers/expo/rules.js'
 import { compareResults } from '../packages/core/src/core/compare.js'
 import { aggregateRecoverableBytes } from '../packages/core/src/core/impact.js'
 import { findingKey } from '../packages/core/src/core/rules-engine.js'

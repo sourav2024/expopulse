@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      # The demo app contains deliberate problems, so exit 1 (findings) is the
+      # expected result; exit 2 would mean the CLI itself broke.
+      - name: CLI smoke test on the demo app
+        run: |
+          set +e
+          node apps/cli/dist/index.js analyze --cwd examples/demo-app --no-cache --json > /tmp/report.json
+          code=$?
+          set -e
+          test "$code" -eq 1
+          node skills/expopulse/scripts/summarize.mjs /tmp/report.json > /dev/null
+      - name: Published tarballs contain no workspace protocol
+        run: |
+          cd apps/cli && pnpm pack --pack-destination /tmp/pack > /dev/null
+          tar -xzf /tmp/pack/expopulse-*.tgz -C /tmp/pack
+          ! grep -q '"workspace:' /tmp/pack/package/package.json
