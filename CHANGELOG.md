@@ -10,6 +10,21 @@ released together.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`fix` no longer breaks the bundle when duplicate images are both in use.**
+  `assets/duplicate-image` deleted the redundant copy even when source code still
+  `require()`d it, leaving a dangling import. The rule now keeps a referenced copy,
+  deletes only unreferenced copies, and lists any other referenced copies under
+  `data.relink` for the user to re-point by hand. A group with nothing safe to
+  delete is no longer marked fixable.
+
+### Added
+
+- CI on Node 20, 22 and 24 (build, typecheck, lint, tests, a CLI smoke test, and a
+  check that the published tarball has no `workspace:` dependency), plus a
+  tag-triggered release workflow that publishes both packages with provenance.
+
 ## [0.2.0] - 2026-08-08
 
 Calibration release. Run against a real Expo 56 app, 0.1.1 reported **1769

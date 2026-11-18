@@ -220,6 +220,53 @@ describe('fix planning', () => {
     expect(new Set(files).size).toBe(files.length)
   })
 
+  /** Plan fixes for one rule and return the files it would delete. */
+  async function plannedDeletions(ruleId: string): Promise<string[]> {
+    const cfg = config()
+    const { project } = await scanProject(cfg, silentLogger)
+    const result = await analyze({
+      config: cfg,
+      logger: silentLogger,
+      analyzers: allAnalyzers,
+      project,
+    })
+    const { plans } = await planFixes({ result, project, config: cfg, logger: silentLogger })
+    return plans
+      .filter((p) => p.ruleId === ruleId)
+      .flatMap((p) => p.actions.filter((a) => a.kind === 'delete').map((a) => a.file))
+  }
+
+  it('never deletes a duplicate copy that source code still requires', async () => {
+    // 0.2.0 deleted one of two identical, both-referenced images without
+    // updating its require(), leaving a dangling import that broke the bundle.
+    const bytes = Buffer.from('identical-content-for-both-copies')
+    await scaffold({
+      'package.json': '{"name":"app"}',
+      'src/App.tsx':
+        'export const A = require("../assets/a/logo.png")\n' +
+        'export const B = require("../assets/b/logo.png")\n',
+    })
+    await fs.mkdir(path.join(root, 'assets/a'), { recursive: true })
+    await fs.mkdir(path.join(root, 'assets/b'), { recursive: true })
+    await fs.writeFile(path.join(root, 'assets/a/logo.png'), bytes)
+    await fs.writeFile(path.join(root, 'assets/b/logo.png'), bytes)
+
+    expect(await plannedDeletions('assets/duplicate-image')).toEqual([])
+  })
+
+  it('keeps the referenced copy and deletes only the unreferenced duplicate', async () => {
+    const bytes = Buffer.from('identical-content-for-both-copies')
+    await scaffold({
+      'package.json': '{"name":"app"}',
+      'src/App.tsx': 'export const A = require("../assets/logo.png")\n',
+    })
+    await fs.mkdir(path.join(root, 'assets'), { recursive: true })
+    await fs.writeFile(path.join(root, 'assets/logo.png'), bytes)
+    await fs.writeFile(path.join(root, 'assets/zz-logo-copy.png'), bytes)
+
+    expect(await plannedDeletions('assets/duplicate-image')).toEqual(['assets/zz-logo-copy.png'])
+  })
+
   it('does not modify a file another plan will delete', async () => {
     const bytes = Buffer.alloc(4096, 9)
     await scaffold({ 'package.json': '{"name":"app"}' })

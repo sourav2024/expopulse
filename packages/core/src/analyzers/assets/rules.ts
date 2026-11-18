@@ -83,32 +83,50 @@ const duplicateImage: Rule<AssetModel> = {
     for (const [hash, group] of byHash) {
       if (group.length < 2) continue
 
-      // Keeping the largest copy is the safe default: if the files differ in
-      // size they are not actually identical, and when they are identical the
-      // choice is arbitrary but must be deterministic for the fixer.
-      const sorted = [...group].sort((a, b) => b.asset.size - a.asset.size)
+      // Keep a copy the code actually uses, so the fix never has to rewrite a
+      // reference. Among equals prefer the largest, then the path, so the
+      // choice is deterministic for the fixer.
+      const sorted = [...group].sort(
+        (a, b) =>
+          Number(b.referenced) - Number(a.referenced) ||
+          b.asset.size - a.asset.size ||
+          a.asset.path.localeCompare(b.asset.path),
+      )
       const keep = sorted[0]
       if (!keep) continue
-      const removable = sorted.slice(1)
-      const bytes = removable.reduce((sum, entry) => sum + entry.asset.size, 0)
+      const redundant = sorted.slice(1)
+      // Only unreferenced copies are safe to delete. Deleting a copy that is
+      // still required leaves a dangling `require()` and breaks the bundle, so
+      // referenced copies are listed for the user to re-point by hand.
+      const removable = redundant.filter((entry) => !entry.referenced)
+      const relink = redundant.filter((entry) => entry.referenced)
+      const bytes = redundant.reduce((sum, entry) => sum + entry.asset.size, 0)
+
+      const parts = [
+        `Removing ${redundant.length} redundant ${
+          redundant.length === 1 ? 'copy' : 'copies'
+        } saves ${formatBytes(bytes)}.`,
+      ]
+      if (relink.length > 0) {
+        parts.push(
+          `${relink.length} of them ${relink.length === 1 ? 'is' : 'are'} still referenced: ` +
+            `point those references at ${keep.asset.path} before deleting.`,
+        )
+      }
 
       findings.push({
         message:
           `${group.length} identical copies of ${keep.asset.path} ` +
           `(${formatBytes(keep.asset.size)} each)`,
         file: keep.asset.path,
-        estimatedImpact: {
-          bytes,
-          note: `Removing ${removable.length} redundant ${
-            removable.length === 1 ? 'copy' : 'copies'
-          } saves ${formatBytes(bytes)}.`,
-        },
-        fixable: true,
+        estimatedImpact: { bytes, note: parts.join(' ') },
+        fixable: removable.length > 0,
         data: {
           hash,
           duplicates: group.map((entry) => entry.asset.path),
           keep: keep.asset.path,
           remove: removable.map((entry) => entry.asset.path),
+          relink: relink.map((entry) => entry.asset.path),
         },
       })
     }

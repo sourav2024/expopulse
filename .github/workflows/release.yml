@@ -1,0 +1,65 @@
+name: release
+
+# Push a tag like v0.2.1 to publish both packages. See CONTRIBUTING.md → Releasing.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Tag matches every version (CLI, core, plugin, skill)
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          CLI=$(node -p 'require("./apps/cli/package.json").version')
+          CORE=$(node -p 'require("./packages/core/package.json").version')
+          PLUGIN=$(node -p 'require("./.claude-plugin/plugin.json").version')
+          SKILL=$(sed -n 's/^  version: "\(.*\)"$/\1/p' skills/expopulse/SKILL.md)
+          echo "tag=$TAG cli=$CLI core=$CORE plugin=$PLUGIN skill=$SKILL"
+          test "$TAG" = "$CLI" && test "$TAG" = "$CORE" && test "$TAG" = "$PLUGIN" && test "$TAG" = "$SKILL"
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+
+      # Core first: the CLI's rewritten dependency must already exist on npm.
+      - name: Publish @expopulse/core
+        run: pnpm --filter @expopulse/core publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
+      - name: Publish expopulse
+        run: pnpm --filter expopulse publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
+
+      - name: GitHub release from the changelog entry
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v v="$VERSION" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > release-notes.md
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md

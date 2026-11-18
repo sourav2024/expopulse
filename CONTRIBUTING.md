@@ -274,6 +274,28 @@ So:
 - Verify with `npm pack` (or `pnpm publish --dry-run`) that the tarball's
   `package.json` contains a real version range before pushing the tag.
 
+The release workflow does all of this. One-time setup:
+
+- An npm automation or granular token with publish rights to `expopulse` and
+  `@expopulse/core`, saved as the `NPM_TOKEN` repository secret.
+- A `release` environment (Settings → Environments). GitHub creates it on the
+  first run if it is missing.
+
+Each release:
+
+1. Move the `## [Unreleased]` entries under a new `## [x.y.z] - date` heading.
+2. Bump the version in `apps/cli/package.json`, `packages/core/package.json`,
+   `.claude-plugin/plugin.json`, `skills/expopulse/SKILL.md` (`metadata.version`)
+   and every `expopulse@x.y.z` pin in `skills/expopulse/`. `tests/skill.test.ts`
+   fails if any of them disagree.
+3. Push to `main`, wait for CI, then `git tag vx.y.z && git push origin vx.y.z`.
+
+`release.yml` checks that the tag matches every version, runs the full
+verification, publishes core then the CLI with provenance, and creates the GitHub
+release from the changelog entry. Push the version bump and the tag together:
+skills.sh serves the skill from `main`, so a pin to an unpublished version breaks
+it for everyone until the release finishes.
+
 ## Questions
 
 See [SUPPORT.md](SUPPORT.md).
