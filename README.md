@@ -286,3 +286,7 @@ false positive on your project helps just as much and costs nothing.
 ## Licence
 
 MIT © [sourav2024](https://github.com/sourav2024)
+
+## Design notes
+
+Architecture diagram, request flow, design trade-offs and known limitations: [docs/DESIGN-NOTES.md](docs/DESIGN-NOTES.md).
